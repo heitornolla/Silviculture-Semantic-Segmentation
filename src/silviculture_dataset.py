@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 class SilvicultureDataset(Dataset):
-    def __init__(self, img_folder, mask_folder, augment=False):
+    def __init__(self, img_folder, mask_folder, augment=False, allowed_cities=None):
         super().__init__()
         self.img_folder = img_folder
         self.mask_folder = mask_folder
@@ -14,6 +14,10 @@ class SilvicultureDataset(Dataset):
         
         self.img_files = sorted(glob.glob(os.path.join(img_folder, '*.npy')))
         self.mask_files = sorted(glob.glob(os.path.join(mask_folder, '*.npy')))
+
+        if allowed_cities is not None:
+            self.img_files = [f for f in self.img_files if any(city in os.path.basename(f) for city in allowed_cities)]
+            self.mask_files = [f for f in self.mask_files if any(city in os.path.basename(f) for city in allowed_cities)]
         
         assert len(self.img_files) == len(self.mask_files), "Amount of patch and mask images does not match"
         
