@@ -263,7 +263,7 @@ class BConvLSTM_Seg(nn.Module):
         )
         self.pad_value = pad_value
 
-    def forward(self, input, batch_posistions=None):
+    def forward(self, input, batch_positions=None):
         pad_mask = (
             (input == self.pad_value).all(dim=-1).all(dim=-1).all(dim=-1)
         )  # BxT pad mask
