@@ -78,6 +78,7 @@ sympy==1.14.0
 torch==2.13.0
 torchnet==0.0.4
 tornado==6.5.7
+tqdm==4.70.0
 traitlets==5.15.1
 triton==3.7.1
 typing_extensions==4.16.0
