@@ -88,9 +88,10 @@ for city in cities:
             # Stacks over time (T, C, H, W)
             # city_tifs has 10 files (5 years x 2 seasons) = (10, 10, 128, 128)
             patch_tensor = np.stack(time_series, axis=0)
-            
-            np.save(os.path.join(out_img, f'patch_{patch_id:05d}.npy'), patch_tensor)
-            np.save(os.path.join(out_mask, f'mask_{patch_id:05d}.npy'), patch_mask)
+
+            base_name = os.path.splitext(os.path.basename(city_tifs[0]))[0]
+            np.save(os.path.join(out_img, f'{base_name}_patch_{patch_id:05d}.npy'), patch_tensor)
+            np.save(os.path.join(out_mask, f'{base_name}_mask_{patch_id:05d}.npy'), patch_mask)
             
             patch_id += 1
 
