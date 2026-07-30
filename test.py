@@ -3,12 +3,12 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
-import torch.nn as nn
 
 from torch.utils.data import DataLoader
 
 from train import get_model, TEST_CITIES
 from src.silviculture_dataset import SilvicultureDataset 
+from src.loss import DiceFocalLoss
 
 parser = argparse.ArgumentParser(description="Semantic Segmentation Model Test")
 parser.add_argument("--model", type=str, default="utae", help="Model Architecture")
@@ -17,17 +17,17 @@ parser.add_argument("--batch_size", type=int, default=8)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def calculate_iou(preds, labels):
+def get_intersection_union(preds, labels):
     preds = preds.argmax(dim=1)
     intersection = ((preds == 1) & (labels == 1)).float().sum()
     union = ((preds == 1) | (labels == 1)).float().sum()
-    if union == 0: return 0.0
-    return (intersection / union).item()
+    return intersection.item(), union.item()
 
 def evaluate_model(model, dataloader, criterion):
     model.eval()
     test_loss = 0.0
-    test_iou  = 0.0
+    total_intersection = 0.0
+    total_union = 0.0
     
     with torch.no_grad():
         for (x, dates), y in dataloader:
@@ -37,10 +37,13 @@ def evaluate_model(model, dataloader, criterion):
             loss = criterion(out, y)
             
             test_loss += loss.item()
-            test_iou  += calculate_iou(out, y)
+            
+            i, u = get_intersection_union(out, y)
+            total_intersection += i
+            total_union += u
             
     test_loss /= len(dataloader)
-    test_iou  /= len(dataloader)
+    test_iou = total_intersection / (total_union + 1e-6)
     
     print(f"Loss: {test_loss:.4f} | IoU: {test_iou:.4f}")
     
@@ -87,24 +90,30 @@ def main():
     args = parser.parse_args()
     
     model = get_model(args.model).to(DEVICE)
-    
     model.load_state_dict(torch.load(args.weights, map_location=DEVICE))
 
-    dataset = SilvicultureDataset(img_folder='data/patches/images/', 
-                                  mask_folder='data/patches/masks/', 
-                                  augment=False, 
-                                  allowed_cities=TEST_CITIES
-                                )
+    dataset = SilvicultureDataset(
+        img_folder='data/patches/images/', 
+        mask_folder='data/patches/masks/', 
+        augment=False, 
+        allowed_cities=TEST_CITIES
+    )
     
-    test_loader = DataLoader(dataset,
-                             batch_size=args.batch_size,
-                             shuffle=True,
-                             num_workers=4,
-                             pin_memory=True,
-                             persistent_workers=True
-                            )
+    test_loader = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=True,
+        persistent_workers=True
+    )
     
-    criterion = nn.CrossEntropyLoss()
+    criterion = DiceFocalLoss(
+        alpha=0.50,
+        gamma=2.0,
+        dice_weight=1.0,
+        focal_weight=0.5,
+    )
     
     evaluate_model(model, test_loader, criterion)
     visualize_predictions(model, test_loader)
