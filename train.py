@@ -3,11 +3,11 @@ import argparse
 import torch
 import tqdm
 
-import torch.nn as nn
 import torch.optim as optim
 
 from torch.utils.data import DataLoader
 
+from src.loss import DiceFocalLoss
 from src.silviculture_dataset import SilvicultureDataset
 
 from src.backbones.convgru  import ConvGRU_Seg
@@ -18,7 +18,7 @@ from src.backbones.utae     import UTAE, RecUNet
 
 EPOCHS = 50
 BATCH_SIZE = 8
-LR = 0.001
+LR = 1e-3
 
 CITIES = [
     'Belo_Oriente',
@@ -154,7 +154,7 @@ def main():
                               pin_memory=True, 
                               persistent_workers=True
                             )
-    
+
     val_loader  = DataLoader(val_ds, 
                             batch_size=BATCH_SIZE, 
                             shuffle=False, 
@@ -168,8 +168,15 @@ def main():
 
     print(f"Params: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = DiceFocalLoss(
+        alpha=0.5,
+        gamma=2.0,
+        dice_weight=1.0,
+        focal_weight=0.5,
+    )
+
     optimizer = optim.AdamW(model.parameters(), lr=LR)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=4)
 
     def calculate_iou(preds, labels):
         preds = preds.argmax(dim=1)
@@ -223,6 +230,8 @@ def main():
             best_iou = val_iou
             torch.save(model.state_dict(), f"{args.model}_best.pth")
             print("--> Saved new best model")
+
+        scheduler.step(val_iou)
 
 
 if __name__ == "__main__":
