@@ -179,7 +179,6 @@ def main():
         val_loss /= len(val_loader)
         val_iou  = val_intersection / (val_union + 1e-6)
         
-        print(f"Epoch {epoch}/{EPOCHS}")
         print(f"Train Loss: {train_loss:.4f} | Train IoU: {train_iou:.4f} || Val Loss:   {val_loss:.4f} | Val IoU:   {val_iou:.4f}")
         
         scheduler.step(val_iou)
