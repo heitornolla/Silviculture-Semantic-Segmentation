@@ -16,7 +16,7 @@ from src.backbones.utae     import UTAE, RecUNet
 
 EPOCHS = 50
 BATCH_SIZE = 8
-LR = 1e-3 # Retry 3e-4 or 5e-4 later
+LR = 5e-4
 
 CITIES = [
     'Belo_Oriente',

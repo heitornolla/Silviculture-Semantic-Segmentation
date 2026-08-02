@@ -1,4 +1,5 @@
 *.pth
+*.png
 notes.md
 data/
 .vscode
