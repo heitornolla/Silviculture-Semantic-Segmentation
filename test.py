@@ -50,7 +50,6 @@ def evaluate_model(model, dataloader, criterion):
 
     return test_loss, test_iou
 
-
 def visualize_predictions(model, dataloader, model_name):
     model.eval()
 
