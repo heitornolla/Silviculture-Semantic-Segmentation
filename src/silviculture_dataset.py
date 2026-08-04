@@ -25,35 +25,41 @@ class SilvicultureDataset(Dataset):
         return len(self.img_files)
 
     def __getitem__(self, idx):
-        img_path = self.img_files[idx]
-        mask_path = self.mask_files[idx]
-        
-        # Shape (T, C, 128, 128)
-        img_np = np.load(img_path)
-        # Shape (128, 128)
-        mask_np = np.load(mask_path)
-        
-        img_np = img_np.astype(np.float32) / 10000.0
-        
-        if self.augment:
-            if np.random.rand() > 0.5:
-                # Horizontal Flip
-                img_np = np.flip(img_np, axis=3)
-                mask_np = np.flip(mask_np, axis=1)
-            if np.random.rand() > 0.5:
-                # Vertical Flip
-                img_np = np.flip(img_np, axis=2)
-                mask_np = np.flip(mask_np, axis=0)
+            img_path = self.img_files[idx]
+            mask_path = self.mask_files[idx]
+            
+            # (T, C, 128, 128)
+            img_np = np.load(img_path)
+            # (128, 128)
+            mask_np = np.load(mask_path)
+            
+            # Fix for border bias: identifies pixels = 0 in all bands and times
+            # axis=(0, 1) collapses time and channels
+            nodata_mask = np.all(img_np == 0, axis=(0, 1)) 
+            
+            # forces GT = 0 where image = 0
+            mask_np[nodata_mask] = 0
+            
+            img_np = img_np.astype(np.float32) / 10000.0
+            
+            if self.augment:
+                if np.random.rand() > 0.5:
+                    # Horizontal Flip
+                    img_np = np.flip(img_np, axis=3)
+                    mask_np = np.flip(mask_np, axis=1)
+                if np.random.rand() > 0.5:
+                    # Vertical Flip
+                    img_np = np.flip(img_np, axis=2)
+                    mask_np = np.flip(mask_np, axis=0)
 
-        img_tensor = torch.from_numpy(img_np.copy())
-        mask_tensor = torch.from_numpy(mask_np.copy()).long()
+            img_tensor = torch.from_numpy(img_np.copy())
+            mask_tensor = torch.from_numpy(mask_np.copy()).long()
 
-        days = [0, 180, 365, 545, 730, 910, 1095, 1275, 1460, 1640]
-        dates_tensor = torch.tensor(days, dtype=torch.long)
-        
-        # Expected by U-TAE
-        return (img_tensor, dates_tensor), mask_tensor
-        
+            days = [0, 180, 365, 545, 730, 910, 1095, 1275, 1460, 1640]
+            dates_tensor = torch.tensor(days, dtype=torch.long)
+            
+            # Expected by U-TAE
+            return (img_tensor, dates_tensor), mask_tensor
 
 train_ds = SilvicultureDataset(
     img_folder='data/patches/images/',
