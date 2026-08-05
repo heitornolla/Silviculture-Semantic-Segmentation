@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import DataLoader
+import tqdm
 
 from train import get_model, TEST_CITIES
 from src.silviculture_dataset import SilvicultureDataset
@@ -12,8 +13,6 @@ from src.loss import DiceFocalLoss
 
 parser = argparse.ArgumentParser(description="Semantic Segmentation Model Test")
 parser.add_argument("--model", type=str, default="utae", help="Model Architecture")
-parser.add_argument("--weights", type=str, required=True, help="Path to pth file")
-parser.add_argument("--batch_size", type=int, default=8)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -59,7 +58,7 @@ def visualize_predictions(model, dataloader, model_name):
     img_id = 1
 
     with torch.no_grad():
-        for (x, dates), y in dataloader:
+        for (x, dates), y in tqdm.tqdm(dataloader, desc=f"Inference {model_name.upper()}"):
             x, dates, y = x.to(DEVICE), dates.to(DEVICE), y.to(DEVICE)
 
             out = model(x, batch_positions=dates)
@@ -108,7 +107,7 @@ def main():
     args = parser.parse_args()
 
     model = get_model(args.model).to(DEVICE)
-    model.load_state_dict(torch.load(args.weights, map_location=DEVICE))
+    model.load_state_dict(torch.load("checkpoints/"+args.model+"_best.pth", map_location=DEVICE))
 
     dataset = SilvicultureDataset(
         img_folder="data/patches/images/",
@@ -119,7 +118,7 @@ def main():
 
     test_loader = DataLoader(
         dataset,
-        batch_size=args.batch_size,
+        batch_size=8,
         shuffle=False,
         num_workers=4,
         pin_memory=True,

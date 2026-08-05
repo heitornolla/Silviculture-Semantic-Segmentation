@@ -1,1 +1,1 @@
-for m in utae unet3d convlstm convgru uconvlstm buconvlstm; do python test.py --model "$m" --weights "checkpoints/focal_dice/${m}_best.pth"; done
+for m in utae unet3d convlstm convgru uconvlstm buconvlstm; do python test.py --model "$m"; done
