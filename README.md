@@ -29,7 +29,7 @@ Train a model with:
 python train.py --model utae
 ```
 
-Replace `utae` with any supported architecture (currently `convlstm`, `uconvlstm`, `bconvlstm`, `buconvlstm`, `convgru`, `unet3d`. `utae`).
+Replace `utae` with any supported architecture (currently `convlstm`, `uconvlstm`, `bconvlstm`, `buconvlstm`, `convgru`, `unet3d`, `utae`).
 
 ## Evaluation
 
