@@ -6,59 +6,68 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 class SilvicultureDataset(Dataset):
-    def __init__(self, img_folder, mask_folder, augment=False, allowed_cities=None):
+    def __init__(self, img_folder, mask_folder, allowed_cities=None, augment=False, mode="3d"):
         super().__init__()
         self.img_folder = img_folder
         self.mask_folder = mask_folder
         self.augment = augment
+        self.mode = mode
+        self.T = 10 # Steps in each tensor
         
-        self.img_files = sorted(glob.glob(os.path.join(img_folder, '*.npy')))
-        self.mask_files = sorted(glob.glob(os.path.join(mask_folder, '*.npy')))
-
+        all_imgs  = sorted(glob.glob(os.path.join(img_folder, '*.npy')))
+        all_masks = sorted(glob.glob(os.path.join(mask_folder, '*.npy')))
+        
         if allowed_cities is not None:
-            self.img_files = [f for f in self.img_files if any(city in os.path.basename(f) for city in allowed_cities)]
-            self.mask_files = [f for f in self.mask_files if any(city in os.path.basename(f) for city in allowed_cities)]
-        
-        assert len(self.img_files) == len(self.mask_files), "Amount of patch and mask images does not match"
+            self.img_files  = [f for f in all_imgs if any(city in os.path.basename(f) for city in allowed_cities)]
+            self.mask_files = [f for f in all_masks if any(city in os.path.basename(f) for city in allowed_cities)]
+        else:
+            self.img_files  = all_imgs
+            self.mask_files = all_masks
+            
+        assert len(self.img_files) == len(self.mask_files), "Mismatch between images and masks"
         
     def __len__(self):
+        # 2D = dataset 10x bigger
+        if self.mode == "2d":
+            return len(self.img_files) * self.T
         return len(self.img_files)
 
     def __getitem__(self, idx):
-            img_path = self.img_files[idx]
-            mask_path = self.mask_files[idx]
+        if self.mode == "2d":
+            file_idx = idx // self.T
+            t_idx = idx % self.T
+        else:
+            file_idx = idx
             
-            # (T, C, 128, 128)
-            img_np = np.load(img_path)
-            # (128, 128)
-            mask_np = np.load(mask_path)
-            
-            # Fix for border bias: identifies pixels = 0 in all bands and times
-            # axis=(0, 1) collapses time and channels
-            nodata_mask = np.all(img_np == 0, axis=(0, 1)) 
-            
-            # forces GT = 0 where image = 0
-            mask_np[nodata_mask] = 0
-            
-            img_np = img_np.astype(np.float32) / 10000.0
-            
-            if self.augment:
-                if np.random.rand() > 0.5:
-                    # Horizontal Flip
-                    img_np = np.flip(img_np, axis=3)
-                    mask_np = np.flip(mask_np, axis=1)
-                if np.random.rand() > 0.5:
-                    # Vertical Flip
-                    img_np = np.flip(img_np, axis=2)
-                    mask_np = np.flip(mask_np, axis=0)
+        img_path  = self.img_files[file_idx]
+        mask_path = self.mask_files[file_idx]
+        
+        img_np  = np.load(img_path)
+        mask_np = np.load(mask_path)
+        
+        nodata_mask = np.all(img_np == 0, axis=(0, 1)) 
+        mask_np[nodata_mask] = 0
+        
+        img_np = img_np.astype(np.float32) / 10000.0
+        
+        if self.augment:
+            if np.random.rand() > 0.5:
+                img_np  = np.flip(img_np, axis=3)
+                mask_np = np.flip(mask_np, axis=1)
+            if np.random.rand() > 0.5:
+                img_np  = np.flip(img_np, axis=2)
+                mask_np = np.flip(mask_np, axis=0)
 
-            img_tensor = torch.from_numpy(img_np.copy())
-            mask_tensor = torch.from_numpy(mask_np.copy()).long()
+        img_tensor  = torch.from_numpy(img_np.copy())
+        mask_tensor = torch.from_numpy(mask_np.copy()).long()
 
+        if self.mode == "2d":
+            # Isolates timestamp
+            img_tensor_2d = img_tensor[t_idx]
+            return img_tensor_2d, mask_tensor
+        else:
             days = [0, 180, 365, 545, 730, 910, 1095, 1275, 1460, 1640]
             dates_tensor = torch.tensor(days, dtype=torch.long)
-            
-            # Expected by U-TAE
             return (img_tensor, dates_tensor), mask_tensor
 
 train_ds = SilvicultureDataset(
