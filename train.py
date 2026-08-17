@@ -2,6 +2,7 @@ import argparse
 import torch
 import tqdm
 import torch.optim as optim
+import segmentation_models_pytorch as smp
 from torch.utils.data import DataLoader
 
 from src.loss import DiceFocalLoss
@@ -40,7 +41,7 @@ parser.add_argument(
     "--model", 
     type=str, 
     default="utae", 
-    choices=["utae", "unet3d", "fpn", "convlstm", "convgru", "bconvlstm", "uconvlstm", "buconvlstm"], 
+    choices=["utae", "unet3d", "fpn", "convlstm", "convgru", "bconvlstm", "uconvlstm", "buconvlstm", "unet2d", "unetplusplus"], 
     help="Model backbone to be trained"
 )
 
@@ -71,6 +72,10 @@ def get_model(model_name, input_dim=10, num_classes=2):
         return RecUNet(input_dim=input_dim, temporal="lstm", encoder_widths=enc_widths, decoder_widths=dec_widths, out_conv=out_conv_dims, padding_mode="reflect")
     elif model_name == "buconvlstm":
         return RecUNet(input_dim=input_dim, temporal="blstm", encoder_widths=enc_widths, decoder_widths=dec_widths, out_conv=out_conv_dims, padding_mode="reflect")
+    elif model_name == "unet2d":
+        return smp.Unet(encoder_name="resnet34", encoder_weights=None, in_channels=input_dim, classes=num_classes)
+    elif model_name == "unetplusplus":
+        return smp.UnetPlusPlus(encoder_name="resnet34", encoder_weights=None, in_channels=input_dim, classes=num_classes)
     else:
         raise ValueError(f"Unsupported model: {model_name}")
 
@@ -88,20 +93,25 @@ def main():
     args = parser.parse_args()
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    is_2d = args.model in ["unet2d", "unetplusplus"]
+    dataset_mode = "2d" if is_2d else "3d"
+
     print(f"Training {args.model.upper()}")
-    
+
     train_ds = SilvicultureDataset(
         img_folder='data/patches/images/', 
         mask_folder='data/patches/masks/', 
         allowed_cities=TRAIN_CITIES, 
-        augment=True
+        augment=True,
+        mode=dataset_mode
     )
 
     val_ds = SilvicultureDataset(
         img_folder='data/patches/images/', 
         mask_folder='data/patches/masks/', 
         allowed_cities=VAL_CITIES, 
-        augment=False
+        augment=False,
+        mode=dataset_mode
     )
 
     train_loader = DataLoader(
@@ -126,7 +136,7 @@ def main():
     )
 
     optimizer = optim.AdamW(model.parameters(), lr=LR)
-    
+
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='max', factor=0.5, patience=4
     )
@@ -138,24 +148,29 @@ def main():
         train_loss = 0.0
         train_intersection = 0.0
         train_union = 0.0
-        
+
         train_pbar = tqdm.tqdm(train_loader, desc=f"Epoch {epoch}/{EPOCHS}")
-        for (x, dates), y in train_pbar:
-            x, dates, y = x.to(DEVICE), dates.to(DEVICE), y.to(DEVICE)
-            
+        for batch_data, y in train_pbar:
+            y = y.to(DEVICE)
             optimizer.zero_grad()
 
-            out = model(x, batch_positions=dates)
-            
+            if is_2d:
+                x = batch_data.to(DEVICE)
+                out = model(x)
+            else:
+                x, dates = batch_data
+                x, dates = x.to(DEVICE), dates.to(DEVICE)
+                out = model(x, batch_positions=dates)
+
             loss = criterion(out, y)
             loss.backward()
             optimizer.step()
-            
+
             train_loss += loss.item()
             i, u = get_intersection_union(out, y)
             train_intersection += i
             train_union += u
-            
+
         train_loss /= len(train_loader)
         train_iou = train_intersection / (train_union + 1e-6)
 
@@ -163,26 +178,33 @@ def main():
         val_loss = 0.0
         val_intersection = 0.0
         val_union = 0.0
-        
+
         with torch.no_grad():
-            for (x, dates), y in val_loader:
-                x, dates, y = x.to(DEVICE), dates.to(DEVICE), y.to(DEVICE)
-                
-                out = model(x, batch_positions=dates)
+            for batch_data, y in val_loader:
+                y = y.to(DEVICE)
+
+                if is_2d:
+                    x = batch_data.to(DEVICE)
+                    out = model(x)
+                else:
+                    x, dates = batch_data
+                    x, dates = x.to(DEVICE), dates.to(DEVICE)
+                    out = model(x, batch_positions=dates)
+
                 loss = criterion(out, y)
-                
+
                 val_loss += loss.item()
                 i, u = get_intersection_union(out, y)
                 val_intersection += i
                 val_union += u
-                
+
         val_loss /= len(val_loader)
         val_iou  = val_intersection / (val_union + 1e-6)
-        
+
         print(f"Train Loss: {train_loss:.4f} | Train IoU: {train_iou:.4f} || Val Loss:   {val_loss:.4f} | Val IoU:   {val_iou:.4f}")
-        
+
         scheduler.step(val_iou)
-        
+
         if val_iou > best_iou:
             best_iou = val_iou
             save_path = f"{args.model}_best.pth"
