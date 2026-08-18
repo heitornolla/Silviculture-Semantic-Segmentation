@@ -1,5 +1,7 @@
 *.pth
+*.pt
 *.png
+*.tif
 notes.md
 data/
 .vscode
