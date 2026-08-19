@@ -2,6 +2,8 @@
 *.pt
 *.png
 *.tif
+*.xml
+*.qgz
 notes.md
 data/
 .vscode
