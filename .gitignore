@@ -4,6 +4,8 @@
 *.tif
 *.xml
 *.qgz
+*.csv
+*.pdf
 notes.md
 data/
 .vscode

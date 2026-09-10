@@ -1,4 +1,4 @@
-Cidade,Configuração,Área IBGE (ha),Área Independente (ha),Área Predita (ha),Diferença vs IBGE (ha),Erro vs IBGE (%),Diferença vs Independente (ha),Erro vs Independente (%)
+Cidade,Configuração,Área IBGE (ha),Área IEF (ha),Área Predita (ha),Diferença vs IBGE (ha),Erro vs IBGE (%),Diferença vs IEF (ha),Erro vs IEF (%)
 Belo Oriente,aggregate_2d,8408.4,9750.0,9815.73,1407.33,16.74,65.73,0.67
 Belo Oriente,aggregate_3d,8408.4,9750.0,10425.35,2016.95,23.99,675.35,6.93
 Belo Oriente,aggregate_all,8408.4,9750.0,10769.93,2361.53,28.09,1019.93,10.46
